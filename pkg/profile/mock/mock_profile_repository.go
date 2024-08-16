@@ -204,6 +204,67 @@ func (_c *MockProfileRepository_FindProfilesByName_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// FindProfilesByNameAndEmail provides a mock function with given fields: ctx, tenantID, name, email
+func (_m *MockProfileRepository) FindProfilesByNameAndEmail(ctx context.Context, tenantID uuid.UUID, name string, email string) ([]*profile.Profile, error) {
+	ret := _m.Called(ctx, tenantID, name, email)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindProfilesByNameAndEmail")
+	}
+
+	var r0 []*profile.Profile
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) ([]*profile.Profile, error)); ok {
+		return rf(ctx, tenantID, name, email)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) []*profile.Profile); ok {
+		r0 = rf(ctx, tenantID, name, email)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*profile.Profile)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string) error); ok {
+		r1 = rf(ctx, tenantID, name, email)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProfileRepository_FindProfilesByNameAndEmail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindProfilesByNameAndEmail'
+type MockProfileRepository_FindProfilesByNameAndEmail_Call struct {
+	*mock.Call
+}
+
+// FindProfilesByNameAndEmail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - tenantID uuid.UUID
+//   - name string
+//   - email string
+func (_e *MockProfileRepository_Expecter) FindProfilesByNameAndEmail(ctx interface{}, tenantID interface{}, name interface{}, email interface{}) *MockProfileRepository_FindProfilesByNameAndEmail_Call {
+	return &MockProfileRepository_FindProfilesByNameAndEmail_Call{Call: _e.mock.On("FindProfilesByNameAndEmail", ctx, tenantID, name, email)}
+}
+
+func (_c *MockProfileRepository_FindProfilesByNameAndEmail_Call) Run(run func(ctx context.Context, tenantID uuid.UUID, name string, email string)) *MockProfileRepository_FindProfilesByNameAndEmail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockProfileRepository_FindProfilesByNameAndEmail_Call) Return(prs []*profile.Profile, err error) *MockProfileRepository_FindProfilesByNameAndEmail_Call {
+	_c.Call.Return(prs, err)
+	return _c
+}
+
+func (_c *MockProfileRepository_FindProfilesByNameAndEmail_Call) RunAndReturn(run func(context.Context, uuid.UUID, string, string) ([]*profile.Profile, error)) *MockProfileRepository_FindProfilesByNameAndEmail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // StoreProfile provides a mock function with given fields: ctx, pr
 func (_m *MockProfileRepository) StoreProfile(ctx context.Context, pr *profile.Profile) error {
 	ret := _m.Called(ctx, pr)

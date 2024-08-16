@@ -15,3 +15,6 @@ paths:
 
   /tenants/{tenant-id}/profiles/{profile-id}:
     $ref: paths/get_profile_id.yml
+
+  /tenants/{tenant-id}/profiles/search:
+    $ref: paths/get_profile_by_name_and_email.yml

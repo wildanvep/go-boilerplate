@@ -174,3 +174,49 @@ func (p *Postgres) FindProfilesByName(ctx context.Context, tenantID uuid.UUID, q
 	}
 	return
 }
+
+func (p *Postgres) FindProfilesByNameAndEmail(ctx context.Context, tenantID uuid.UUID, qname string, qemail string) (prs []*profile.Profile, err error) {
+	_, span := p.tracer.Start(ctx, "findProfilesByNameAndEmail", trace.WithAttributes(
+		attribute.Stringer("tenantID", tenantID),
+	))
+	defer span.End()
+
+	// we don't need the return value since we are using the Filter func to efficiently convert the item
+	_, err = p.q.FindProfilesByNameAndEmail(ctx,
+		sqlc.FindProfilesByNameAndEmailParams{
+			TenantID:  tenantID,
+			NameBidx:  sqlval.BIDXString(p.bidxFunc(tenantID), qname).ForRead(pqByteArray),
+			EmailBidx: sqlval.BIDXString(p.bidxFunc(tenantID), qemail).ForRead(pqByteArray),
+		},
+		func(fpbnr *sqlc.FindProfilesByNameAndEmailRow) {
+			// initiate so that we can decrypt
+			fpbnr.Nin = sqlval.AEADString(p.aeadFunc(tenantID), "", fpbnr.ID[:])
+			fpbnr.Name = sqlval.AEADString(p.aeadFunc(tenantID), "", fpbnr.ID[:])
+			fpbnr.Phone = sqlval.AEADString(p.aeadFunc(tenantID), "", fpbnr.ID[:])
+			fpbnr.Email = sqlval.AEADString(p.aeadFunc(tenantID), "", fpbnr.ID[:])
+			fpbnr.Dob = sqlval.AEADTime(p.aeadFunc(tenantID), time.Time{}, fpbnr.ID[:])
+		},
+		func(fpbnr sqlc.FindProfilesByNameAndEmailRow) (bool, error) {
+			// due to bloom filter, we need to verify if the name match
+			if fpbnr.Name.To() != qname || fpbnr.Email.To() != qemail {
+				return false, nil
+			}
+
+			prs = append(prs,
+				&profile.Profile{
+					ID:       fpbnr.ID,
+					TenantID: tenantID,
+					NIN:      fpbnr.Nin.To(),
+					Name:     fpbnr.Name.To(),
+					Email:    fpbnr.Email.To(),
+					Phone:    fpbnr.Phone.To(),
+					DOB:      fpbnr.Dob.To(),
+				})
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("fail to query profile by name and email: %w", err)
+	}
+	return
+}

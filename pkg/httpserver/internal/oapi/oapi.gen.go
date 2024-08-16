@@ -57,6 +57,12 @@ type PostProfileParams struct {
 	Validate *bool `form:"validate,omitempty" json:"validate,omitempty"`
 }
 
+// GetProfileByNameAndEmailParams defines parameters for GetProfileByNameAndEmail.
+type GetProfileByNameAndEmailParams struct {
+	Name  string `form:"name" json:"name"`
+	Email string `form:"email" json:"email"`
+}
+
 // PostProfileJSONRequestBody defines body for PostProfile for application/json ContentType.
 type PostProfileJSONRequestBody = CreateProfile
 
@@ -65,6 +71,9 @@ type ServerInterface interface {
 	// create profile
 	// (POST /tenants/{tenant-id}/profiles)
 	PostProfile(ctx echo.Context, tenantId UUID, params PostProfileParams) error
+	// get profile by name and email
+	// (GET /tenants/{tenant-id}/profiles/search)
+	GetProfileByNameAndEmail(ctx echo.Context, tenantId UUID, params GetProfileByNameAndEmailParams) error
 	// get profile
 	// (GET /tenants/{tenant-id}/profiles/{profile-id})
 	GetProfile(ctx echo.Context, tenantId UUID, profileId UUID) error
@@ -97,6 +106,38 @@ func (w *ServerInterfaceWrapper) PostProfile(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.PostProfile(ctx, tenantId, params)
+	return err
+}
+
+// GetProfileByNameAndEmail converts echo context to params.
+func (w *ServerInterfaceWrapper) GetProfileByNameAndEmail(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant-id" -------------
+	var tenantId UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenant-id", ctx.Param("tenant-id"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant-id: %s", err))
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProfileByNameAndEmailParams
+	// ------------- Required query parameter "name" -------------
+
+	err = runtime.BindQueryParameter("form", true, true, "name", ctx.QueryParams(), &params.Name)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter name: %s", err))
+	}
+
+	// ------------- Required query parameter "email" -------------
+
+	err = runtime.BindQueryParameter("form", true, true, "email", ctx.QueryParams(), &params.Email)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter email: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetProfileByNameAndEmail(ctx, tenantId, params)
 	return err
 }
 
@@ -153,6 +194,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.POST(baseURL+"/tenants/:tenant-id/profiles", wrapper.PostProfile)
+	router.GET(baseURL+"/tenants/:tenant-id/profiles/search", wrapper.GetProfileByNameAndEmail)
 	router.GET(baseURL+"/tenants/:tenant-id/profiles/:profile-id", wrapper.GetProfile)
 
 }
@@ -181,6 +223,32 @@ type PostProfile400Response struct {
 
 func (response PostProfile400Response) VisitPostProfileResponse(w http.ResponseWriter) error {
 	w.WriteHeader(400)
+	return nil
+}
+
+type GetProfileByNameAndEmailRequestObject struct {
+	TenantId UUID `json:"tenant-id"`
+	Params   GetProfileByNameAndEmailParams
+}
+
+type GetProfileByNameAndEmailResponseObject interface {
+	VisitGetProfileByNameAndEmailResponse(w http.ResponseWriter) error
+}
+
+type GetProfileByNameAndEmail200JSONResponse Profile
+
+func (response GetProfileByNameAndEmail200JSONResponse) VisitGetProfileByNameAndEmailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProfileByNameAndEmail404Response struct {
+}
+
+func (response GetProfileByNameAndEmail404Response) VisitGetProfileByNameAndEmailResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
 	return nil
 }
 
@@ -215,6 +283,9 @@ type StrictServerInterface interface {
 	// create profile
 	// (POST /tenants/{tenant-id}/profiles)
 	PostProfile(ctx context.Context, request PostProfileRequestObject) (PostProfileResponseObject, error)
+	// get profile by name and email
+	// (GET /tenants/{tenant-id}/profiles/search)
+	GetProfileByNameAndEmail(ctx context.Context, request GetProfileByNameAndEmailRequestObject) (GetProfileByNameAndEmailResponseObject, error)
 	// get profile
 	// (GET /tenants/{tenant-id}/profiles/{profile-id})
 	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
@@ -264,6 +335,32 @@ func (sh *strictHandler) PostProfile(ctx echo.Context, tenantId UUID, params Pos
 	return nil
 }
 
+// GetProfileByNameAndEmail operation middleware
+func (sh *strictHandler) GetProfileByNameAndEmail(ctx echo.Context, tenantId UUID, params GetProfileByNameAndEmailParams) error {
+	var request GetProfileByNameAndEmailRequestObject
+
+	request.TenantId = tenantId
+	request.Params = params
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProfileByNameAndEmail(ctx.Request().Context(), request.(GetProfileByNameAndEmailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProfileByNameAndEmail")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GetProfileByNameAndEmailResponseObject); ok {
+		return validResponse.VisitGetProfileByNameAndEmailResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // GetProfile operation middleware
 func (sh *strictHandler) GetProfile(ctx echo.Context, tenantId UUID, profileId UUID) error {
 	var request GetProfileRequestObject
@@ -293,16 +390,17 @@ func (sh *strictHandler) GetProfile(ctx echo.Context, tenantId UUID, profileId U
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RUTW/bMAz9KwG3o1ynaw6DbvsAhtwKbL1sKAbFZhJtsqhKdLHA8H8fKDtNvQ5r2g77",
-	"OEWgyfdIvhd2UFETyKPnBLqDVG2xMfn5JqJhPI+0tg4lECIFjGwxf65pJT/PI65Bw7PygFOOIOVHjGRW",
-	"Dj/YBqFXgI2x7tii9xyt30iZNw0+osr6hxeFLfkHc/W9gn9gTba+r+biYvn2f1ioAkZvPH8+diRRIL90",
-	"B2uKjWHQ0La2BgW8Cwga0oCt4FuxoUKCRfpqQ0GBLXnjikDWM0bQHFvsFfzQlO6ejJT1vd1hbRgLluhj",
-	"25TBrV+TwDpboU+ZYRAYlpLpjQMFbXSgYcscdFk6qozbUuK8asvi272DZ6/Ol6DgGmOy5EHD6cn8ZC6J",
-	"FNCbYEHDWQ4pCIa32eTloFcqu+FR2LovwwCYE4KQ6U4wopFJlrVQUuL9H0fQommQMSbQnzoQt2UG2BsW",
-	"bsBBQcSr1kash0Wo8XAdaRc1wl+1GHcH/GvjrGgCt+FGYVZEDo2Hvr8cyDHxa6p3klKRZ/R5QBOCs1Ue",
-	"sfySyB9u6n2tTc9tVnY6Yw6kQD4NO30xP/1t5BPaGlMVbTacOLKtKkxJHLCYz/NJm3xfmXo27kM2Cwmr",
-	"NlreiYiyq9Q2jYk70FDlCWfhhkv92jhlN74kKsQb/ImJ3uHf9dAU/tDxU/Ev78g9/+NyL+7K7Ylna2p9",
-	"fY/YG+RbSufUeL3X5XCNki73euuXi8UZyF6nn2+u1Zhw2X8PAAD//3kfZ7S1CAAA",
+	"H4sIAAAAAAAC/9xVwW7UMBD9lWjgmDRbugfkWwsI7QVVgl5AFfLGs7uGxOPaTkUU5d/ROMluQ6G7bREU",
+	"TrEm9nue914mLRRUWTJoggfRgi82WMm4fOVQBjx3tNIlcsE6suiCxvha0ZIfzx2uQMCzfIeTDyD5R3Qk",
+	"lyV+0BVClwJWUpeHHnofnDZrPmZkhQ84pc39D9kNmXtzdV0KT0AmrfadubhYvP4XBE0hoJEmfD60JXYg",
+	"rkQLK3KVDCCgrrWCFEJjEQT4HjuFb9maMi5m/qu2Gdmgycgys6RNQAciuBq7FH64lGgfjRT9vXlDJQNm",
+	"gasPvSY3rs2KGLbUBRofGXqDYcE7jSwhhdqVIGATghV5XlIhyw35EKXWgXM7Jjg5PV9ACtfovCYDAo6P",
+	"Zkcz3kgWjbQaBJzEUgpWhk0Med775fO2X2RadbntAeMGy2SiZQwnuZOFYkryYfxwGM3JCgM6D+JTC5y2",
+	"yABjYGELDik4vKq1Q9ULkQ6D68C4pAP8VY2u2eFfy1KzJ3ATbjBmSVSiNNB1lz05+nBGquEtBZmAJjYo",
+	"rS11EVvMv3gyu5m672rTcRudnfYYC96S8b2mL2bHv418QqvQF07HwHEi66JA7zkB89ksjrTJ+6VUyaAH",
+	"Kwsei9rp0LCJrJWvq0q6BgQUscPEbrnSu4OTe5Su2DDlGn8Sn7c4pueseScrPDXqTRydTyFL8XEX9PSD",
+	"/yUODh0dDnR5KyezP56T+e2cGArJimqj9qRkjWGMSLJsEpYhkUYlvRD7Q9MOK64eEJ2/E5Yp/O7Gj8X/",
+	"f7zvaTy669GX3S/Mi3z0W7ycz0+AdZ2+3v7ihg2X3fcAAAD//9HC2d7qCgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

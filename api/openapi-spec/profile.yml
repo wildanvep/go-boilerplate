@@ -67,6 +67,37 @@ paths:
                                 $ref: '#/components/schemas/Profile'
                 "404":
                     description: not found
+    /tenants/{tenant-id}/profiles/search:
+        get:
+            security:
+                - {}
+            summary: "get profile by name and email"
+            operationId: "GetProfileByNameAndEmail"
+            parameters:
+                - name: tenant-id
+                  required: true
+                  in: path
+                  schema:
+                    $ref: '#/components/schemas/UUID'
+                - name: name
+                  in: query
+                  required: true
+                  schema:
+                    type: string
+                - name: email
+                  in: query
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: "success"
+                    content:
+                        "application/json":
+                            schema:
+                                $ref: '#/components/schemas/Profile'
+                "404":
+                    description: not found
 components:
     schemas:
         UUID:

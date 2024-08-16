@@ -31,6 +31,31 @@ func (s oapiServerImplementation) GetProfile(ctx context.Context, request oapi.G
 	}, nil
 }
 
+// GetProfileByNameAndEmail implements oapi.StrictServerInterface.
+func (s oapiServerImplementation) GetProfileByNameAndEmail(ctx context.Context, request oapi.GetProfileByNameAndEmailRequestObject) (oapi.GetProfileByNameAndEmailResponseObject, error) {
+	prs, err := s.h.profileRepo.FindProfilesByNameAndEmail(ctx, request.TenantId, request.Params.Name, request.Params.Email)
+
+	if err != nil {
+		return nil, err
+	}
+	if prs == nil || len(prs) == 0 {
+		return oapi.GetProfileByNameAndEmail404Response{}, nil
+	}
+
+	// Use the first profile if multiple are returned
+	pr := prs[0]
+
+	return oapi.GetProfileByNameAndEmail200JSONResponse{
+		Id:       pr.ID,
+		TenantId: pr.TenantID,
+		Name:     pr.Name,
+		Nin:      pr.NIN,
+		Email:    pr.Email,
+		Dob:      pr.DOB,
+		Phone:    pr.Phone,
+	}, nil
+}
+
 // PostProfile implements oapi.StrictServerInterface.
 func (s oapiServerImplementation) PostProfile(ctx context.Context, request oapi.PostProfileRequestObject) (oapi.PostProfileResponseObject, error) {
 	id, err := uuid.NewV7()

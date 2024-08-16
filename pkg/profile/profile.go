@@ -56,4 +56,5 @@ type ProfileRepository interface {
 	FetchProfile(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (pr *Profile, err error)
 	FindProfileNames(ctx context.Context, tenantID uuid.UUID, query string) (names []string, err error)
 	FindProfilesByName(ctx context.Context, tenantID uuid.UUID, name string) (prs []*Profile, err error)
+	FindProfilesByNameAndEmail(ctx context.Context, tenantID uuid.UUID, name string, email string) (prs []*Profile, err error)
 }

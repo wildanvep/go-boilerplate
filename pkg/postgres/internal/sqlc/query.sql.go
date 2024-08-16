@@ -136,6 +136,83 @@ func (q *Queries) FindProfilesByName(ctx context.Context, arg FindProfilesByName
 	return items, nil
 }
 
+const findProfilesByNameAndEmail = `-- name: FindProfilesByNameAndEmail :many
+SELECT 
+    id, nin, name, phone, email, dob 
+FROM 
+    profile 
+WHERE 
+    tenant_id = $1 and name_bidx = ANY($2) and email_bidx = ANY($3)
+`
+
+type FindProfilesByNameAndEmailParams struct {
+	TenantID  uuid.UUID
+	NameBidx  types.BIDXString
+	EmailBidx types.BIDXString
+}
+
+type FindProfilesByNameAndEmailRow struct {
+	ID    uuid.UUID
+	Nin   types.AEADString
+	Name  types.AEADString
+	Phone types.AEADString
+	Email types.AEADString
+	Dob   types.AEADTime
+}
+
+// FindProfilesByNameAndEmail
+//
+//	SELECT
+//	    id, nin, name, phone, email, dob
+//	FROM
+//	    profile
+//	WHERE
+//	    tenant_id = $1 and name_bidx = ANY($2) and email_bidx = ANY($3)
+func (q *Queries) FindProfilesByNameAndEmail(ctx context.Context, arg FindProfilesByNameAndEmailParams, iOptionalInitFunc func(*FindProfilesByNameAndEmailRow), iOptionalFilterFunc func(FindProfilesByNameAndEmailRow) (bool, error)) ([]FindProfilesByNameAndEmailRow, error) {
+	rows, err := q.db.QueryContext(ctx, findProfilesByNameAndEmail, arg.TenantID, arg.NameBidx, arg.EmailBidx)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindProfilesByNameAndEmailRow
+	for rows.Next() {
+		var i FindProfilesByNameAndEmailRow
+		if iOptionalInitFunc != nil {
+			iOptionalInitFunc(&i)
+		}
+
+		if err := rows.Scan(
+			&i.ID,
+			&i.Nin,
+			&i.Name,
+			&i.Phone,
+			&i.Email,
+			&i.Dob,
+		); err != nil {
+			return nil, err
+		}
+
+		if iOptionalFilterFunc != nil {
+			add, err := iOptionalFilterFunc(i)
+			if err != nil {
+				return nil, err
+			}
+			if !add {
+				continue
+			}
+		}
+
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findTextHeap = `-- name: FindTextHeap :many
 SELECT 
     content 
